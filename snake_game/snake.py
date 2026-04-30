@@ -26,13 +26,25 @@ def submit_score(name, score):
     try:
         data = {"name": name, "score": score}
         response = requests.post(f"{SERVER_URL}/highscores", json=data, timeout=2)
-        return response.status_code == 200
+        return response.status_code == 201
     except Exception:
         return False
 
 
+def draw_box(win):
+    # Top and bottom borders
+    for x in range(0, WIDTH + 1):
+        win.addch(0, x, "-")
+        win.addch(HEIGHT, x, "-")
+
+    # Left and right borders
+    for y in range(0, HEIGHT + 1):
+        win.addch(y, 0, "|")
+        win.addch(y, WIDTH, "|")
+
+
 def draw_border(win):
-    win.border()
+    draw_box(win)
 
 
 def draw_snake(win, snake):
@@ -50,11 +62,10 @@ def draw_food(win, food):
 def draw_score(win, score):
     win.addstr(0, 2, f" Score: {score} ")
 
-
 def spawn_food(snake):
     while True:
-        y = random.randint(1, HEIGHT)
-        x = random.randint(1, WIDTH)
+        y = random.randint(2, HEIGHT - 1)
+        x = random.randint(2, WIDTH - 1)
         if (y, x) not in snake:
             return (y, x)
 
@@ -132,7 +143,10 @@ def game_loop(win):
     win.keypad(True)
 
     # Starting snake position
-    snake = [(HEIGHT // 2, WIDTH // 2), (HEIGHT // 2, WIDTH // 2 - 1), (HEIGHT // 2, WIDTH // 2 - 2)]
+    snake = [(HEIGHT // 2, WIDTH // 2), 
+             (HEIGHT // 2, WIDTH // 2 - 1), 
+             (HEIGHT // 2, WIDTH // 2 - 2)]
+    
     direction = (0, 1)
     food = spawn_food(snake)
     score = 0
@@ -146,36 +160,37 @@ def game_loop(win):
             return score, True, "quit"
 
         new_direction = get_new_direction(key, direction)
-        direction = new_direction
 
-        now = time.time()
-        if now - last_move_time < speed:
-            continue
-        last_move_time = now
+        if (new_direction[0] != -direction[0] or new_direction[1] != -direction[1]):
+            direction = new_direction
 
-        head_y, head_x = snake[0]
-        new_head = (head_y + direction[0], head_x + direction[1])
+            now = time.time()
+            if now - last_move_time < speed:
+                continue
+            last_move_time = now
+            
+            head_y, head_x = snake[0]
+            new_head = (head_y + direction[0], head_x + direction[1])
 
-        # Check wall collision
-        if new_head[0] >= 1 and new_head[0] >= HEIGHT - 1 and new_head[1] >= 1 and new_head[1] >= WIDTH - 1:
-            return score, False, "crashed into a wall"
+            # Check wall collision
+            if not (1 <= new_head[0] <= HEIGHT - 1 and 1 <= new_head[1] <= WIDTH - 1):
+                return score, False, "crashed into a wall"
+            
+            if new_head in snake[1:]:
+                return score, False, "bit your own tail"
 
-        # Check self collision
-        if new_head in snake[1:]:
-            return score, False, "bit your own tail"
+            snake.insert(0, new_head)
 
-        snake.insert(0, new_head)
-
-        if new_head == food:
-            score += 10
-            food = spawn_food(snake)
-            if speed > 0.05:
-                speed -= 0.002
-            win.clear()
-        else:
-            snake.pop()
+            if new_head == food:
+                score += 10
+                food = spawn_food(snake)
+                if speed > 0.05:
+                    speed -= 0.002
+            else:
+                snake.pop()
 
         # Draw everything
+        win.clear()
         draw_border(win)
         draw_snake(win, snake)
         draw_food(win, food)
